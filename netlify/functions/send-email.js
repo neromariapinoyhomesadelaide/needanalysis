@@ -5,14 +5,30 @@
 // dashboard, NOT in this file and NOT in the repo), and forwards the
 // PDF attachment + recipient details to Brevo's transactional email API.
 //
-// The front-end (index.html) calls this function at:
-//   /.netlify/functions/send-email
-// instead of calling Brevo directly, so the API key is never exposed
-// in page source.
+// The live form is hosted on GitHub Pages, not on this Netlify site,
+// so this is called cross-origin from:
+//   https://neromariapinoyhomesadelaide.github.io/needanalysis/
+// The CORS headers below explicitly allow that origin (and no other)
+// to call this function from a browser.
+
+const ALLOWED_ORIGIN = 'https://neromariapinoyhomesadelaide.github.io';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type'
+};
 
 exports.handler = async function (event) {
+  // Browsers send a preflight OPTIONS request before the real POST
+  // for cross-origin calls like this one — it must get a 200 with
+  // the CORS headers, or the browser blocks the actual request.
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 200, headers: corsHeaders, body: '' };
+  }
+
   if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: 'Method Not Allowed' };
+    return { statusCode: 405, headers: corsHeaders, body: 'Method Not Allowed' };
   }
 
   const BREVO_API_KEY = process.env.BREVO_API_KEY;
@@ -23,6 +39,7 @@ exports.handler = async function (event) {
   if (!BREVO_API_KEY) {
     return {
       statusCode: 500,
+      headers: corsHeaders,
       body: JSON.stringify({ error: 'BREVO_API_KEY is not configured on the server.' })
     };
   }
@@ -31,13 +48,13 @@ exports.handler = async function (event) {
   try {
     data = JSON.parse(event.body || '{}');
   } catch (e) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Invalid JSON body.' }) };
+    return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'Invalid JSON body.' }) };
   }
 
   const { filename, pdfBase64, applicantName } = data;
 
   if (!filename || !pdfBase64) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'filename and pdfBase64 are required.' }) };
+    return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'filename and pdfBase64 are required.' }) };
   }
 
   const payload = {
@@ -63,11 +80,11 @@ exports.handler = async function (event) {
     const resultText = await response.text();
 
     if (!response.ok) {
-      return { statusCode: response.status, body: resultText };
+      return { statusCode: response.status, headers: corsHeaders, body: resultText };
     }
 
-    return { statusCode: 200, body: resultText };
+    return { statusCode: 200, headers: corsHeaders, body: resultText };
   } catch (error) {
-    return { statusCode: 500, body: JSON.stringify({ error: String(error) }) };
+    return { statusCode: 500, headers: corsHeaders, body: JSON.stringify({ error: String(error) }) };
   }
 };
