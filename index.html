@@ -34,9 +34,14 @@ button{border:0;border-radius:8px;padding:12px 20px;font-weight:700;cursor:point
 button:disabled{opacity:.5;cursor:not-allowed}
 .note{font-size:12px;color:var(--muted);margin-top:8px}
 .a2-only{display:none}
-.success{display:none;margin:0 auto 18px;max-width:1100px;padding:14px 18px;border-radius:8px;background:#e9f8ef;color:#146c3a;border:1px solid #b8e0c7}
+.thankyou{display:none;max-width:640px;margin:60px auto;padding:0 16px;text-align:center}
+.thankyou .checkmark{width:64px;height:64px;border-radius:50%;background:#e9f8ef;color:#146c3a;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;font-size:32px;border:1px solid #b8e0c7}
+.thankyou h2{margin:0 0 10px;color:var(--navy);font-size:24px}
+.thankyou p{color:var(--muted);font-size:15px;line-height:1.5;margin:0 0 22px}
+.thankyou .actions{position:static;background:transparent;border:0;justify-content:center;padding:0}
+@media print{.thankyou{display:none!important}}
 @media(max-width:720px){.grid,.grid3{grid-template-columns:1fr}.full{grid-column:auto}.actions{position:static;flex-direction:column}.actions button{width:100%}}
-@media print{.actions,.checks button,#success{display:none!important}button{display:none!important}}
+@media print{.actions,.checks button,#thankYou{display:none!important}button{display:none!important}}
 .sending{opacity:.6;pointer-events:none}
 .review-value{padding:2px 0 12px 14px;background:transparent;border:0;border-radius:0;min-height:20px;font-size:14px;word-break:break-word;color:var(--text)}
 .review{color:#000}.review .card h2{color:#000}.review .card label{color:#000}.review .review-value{color:#000}
@@ -302,7 +307,6 @@ Yes, All is correct
 </div>
 <div class="actions" id="formActions">
 <button class="secondary" onclick="document.getElementById('needsForm').reset()" type="button">Clear Form</button>
-<button class="secondary" onclick="window.print()" type="button">Print / Save PDF</button>
 <button class="primary" disabled="" id="submitBtn" type="submit">Review &amp; Submit</button>
 </div>
 <div class="actions" id="reviewActions" style="display:none">
@@ -310,7 +314,14 @@ Yes, All is correct
 <button class="primary" disabled="" id="confirmSubmitBtn" onclick="confirmAndSubmit()" type="button">Confirm &amp; Submit</button>
 </div>
 </form>
-<div class="success" id="success">Thank you. Your Needs Analysis has been completed. The form data has been saved as a file for submission.</div>
+<div class="thankyou" id="thankYou">
+<div class="checkmark">&#10003;</div>
+<h2>Thank you!</h2>
+<p id="thankYouMessage">Thank you for providing us with your information. Your Needs Analysis has been submitted. A PDF copy has been downloaded — forward that PDF to the lender/broker if needed.</p>
+<div class="actions">
+<button class="secondary" onclick="startNewSubmission()" type="button">Submit Another Response</button>
+</div>
+</div>
 <script>
 function money(v){return '<input type="number" step="0.01" name="'+v+'_value" placeholder="$">'}
 
@@ -713,11 +724,15 @@ async function confirmAndSubmit(){
   document.getElementById('reviewSummary').style.display = 'none';
   document.getElementById('reviewActions').style.display = 'none';
   document.getElementById('formSections').style.display = '';
-  const successBox = document.getElementById('success');
-  if (successBox) successBox.style.display = 'none';
+  const thankYouBox = document.getElementById('thankYou');
+  if (thankYouBox) thankYouBox.style.display = 'none';
 
+  let submitted = false;
+  let pdfError = null;
+  let emailError = null;
+
+  // 1) Generate a PDF snapshot of the form for forwarding to the lender
   try {
-    // 1) Generate a PDF snapshot of the form for forwarding to the lender
     await html2pdf().set({
       margin: 10,
       filename: 'needs-analysis-'+filenameDate+'.pdf',
@@ -725,8 +740,13 @@ async function confirmAndSubmit(){
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
       pagebreak: { mode: ['css','legacy'] }
     }).from(form).save();
+  } catch (error) {
+    console.error('PDF generation error:', error);
+    pdfError = error;
+  }
 
-    // 2) Email the submission via Formspree (no attachment, all fields included in the email body)
+  // 2) Email the submission via Formspree (no attachment, all fields included in the email body)
+  try {
     const replyToField = document.getElementById('_replyto') || form.querySelector('[name="_replyto"]');
     if (replyToField) replyToField.value = form.querySelector('[name="a1_email"]')?.value || '';
 
@@ -736,25 +756,59 @@ async function confirmAndSubmit(){
       body: formData,
       headers: { 'Accept': 'application/json' }
     });
-    const result = await response.json();
+
+    let result = null;
+    try { result = await response.json(); } catch (parseErr) { console.error('Formspree response was not JSON:', parseErr); }
 
     if (response.ok) {
-      document.getElementById('success').textContent = 'Thank you. Your Needs Analysis has been emailed and a PDF copy has been downloaded — forward that PDF to the lender/broker if needed.';
+      document.getElementById('thankYouMessage').textContent = pdfError
+        ? 'Thank you for providing us with your information. Your Needs Analysis has been emailed, but the PDF download failed — please contact us if you need a copy.'
+        : 'Thank you for providing us with your information. Your Needs Analysis has been emailed and a PDF copy has been downloaded — forward that PDF to the lender/broker if needed.';
+      submitted = true;
     } else {
-      const errMsg = (result && result.errors && result.errors.map(e => e.message).join(', ')) || 'unknown error';
-      document.getElementById('success').textContent = 'Your PDF was downloaded, but the email could not be sent (' + errMsg + '). Please email the PDF manually.';
+      const errMsg = (result && result.errors && result.errors.map(e => e.message).join(', ')) || ('HTTP ' + response.status);
+      console.error('Formspree submission failed:', errMsg);
+      emailError = new Error(errMsg);
+      document.getElementById('thankYouMessage').textContent = pdfError
+        ? 'We could not email your Needs Analysis or generate the PDF (' + errMsg + '). Please try again or contact us directly.'
+        : 'Your PDF was downloaded, but the email could not be sent (' + errMsg + '). Please email the PDF manually.';
+      submitted = true;
     }
   } catch (error) {
-    console.error('Submission error:', error);
-    document.getElementById('success').textContent = 'Something went wrong sending this form. Your PDF may still have downloaded — please check and email it manually if needed.';
-  } finally {
+    console.error('Email submission error:', error);
+    emailError = error;
+  }
+
+  if (pdfError && emailError) {
+    // Both steps failed before we could confirm anything — keep the form visible so the user can retry.
     document.getElementById('formActions').style.display = 'flex';
-    document.getElementById('success').style.display = 'block';
     window.scrollTo({top:0, behavior:'smooth'});
+    alert('Something went wrong sending this form: ' + (emailError.message || emailError) + '. Please check your internet connection and try again, or contact us directly.');
+  }
+
+  {
     confirmBtn.disabled = false;
     confirmBtn.textContent = originalBtnText;
     form.classList.remove('sending');
+
+    if (submitted) {
+      // Replace the filled-in form with a clean thank-you confirmation screen.
+      document.getElementById('formSections').style.display = 'none';
+      document.getElementById('formActions').style.display = 'none';
+      if (thankYouBox) thankYouBox.style.display = 'block';
+      window.scrollTo({top:0, behavior:'smooth'});
+    }
   }
+}
+
+function startNewSubmission(){
+  const form = document.getElementById('needsForm');
+  form.reset();
+  document.getElementById('thankYou').style.display = 'none';
+  document.getElementById('formSections').style.display = '';
+  document.getElementById('formActions').style.display = 'flex';
+  toggleSubmitEnabled();
+  window.scrollTo({top:0, behavior:'smooth'});
 }
 </script>
 </body>
