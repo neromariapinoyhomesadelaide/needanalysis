@@ -779,11 +779,12 @@ async function confirmAndSubmit(){
     emailError = error;
   }
 
-  if (pdfError && emailError) {
-    // Both steps failed before we could confirm anything — keep the form visible so the user can retry.
+  if (!submitted) {
+    // Nothing succeeded (the email fetch itself failed/threw) — keep the form visible so the user can retry.
     document.getElementById('formActions').style.display = 'flex';
     window.scrollTo({top:0, behavior:'smooth'});
-    alert('Something went wrong sending this form: ' + (emailError.message || emailError) + '. Please check your internet connection and try again, or contact us directly.');
+    const reason = emailError ? (emailError.message || String(emailError)) : 'unknown error';
+    alert('Something went wrong sending this form: ' + reason + '. If you are opening this file directly (file://) in your browser, that will block the submission — this form needs to be hosted on a real web server (http/https) for the email step to work. Please check your connection and try again, or contact us directly.');
   }
 
   {
