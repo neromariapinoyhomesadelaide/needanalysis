@@ -706,44 +706,16 @@ document.getElementById('needsForm').addEventListener('submit', function(e){
   showReview();
 });
 
-const RECIPIENT_EMAIL = 'neromaria.pinoyhomesadelaide@gmail.com';
-
 /*
- * BREVO CONFIGURATION
- * ====================================================================
- * IMPORTANT SECURITY WARNING:
- * Brevo API keys are meant for server-side use. Putting a real key in
- * this file means ANYONE who views the page source (or your site's
- * public HTML) can copy it and send email — or exhaust/abuse your
- * quota — using your Brevo account. There is no way to fully secure
- * an API key that ships inside client-side HTML/JS.
- *
- * The safer approach is a small server-side relay (e.g. a Netlify/
- * Vercel function or similar) that holds the key and forwards the
- * request — this page would call your own endpoint instead of Brevo
- * directly. This file is wired up per your request to call Brevo
- * directly from the browser; swap BREVO_API_KEY below for your real
- * key only if you accept that trade-off, ideally with a restricted,
- * sending-only key and usage alerts turned on in Brevo.
- * ====================================================================
- *
- * BREVO_API_KEY      = Brevo > SMTP & API > API Keys
- * BREVO_SENDER_EMAIL  = an email address verified as a sender in Brevo
- * BREVO_SENDER_NAME   = display name for the "from" field
+ * EMAIL SENDING
+ * This page no longer talks to Brevo directly. The PDF and applicant
+ * details are sent to a Netlify Function (netlify/functions/send-email.js)
+ * which holds the Brevo API key as a server-side environment variable.
+ * The key never appears in this file or in page source — see that
+ * function's file, and the Netlify site's Environment Variables
+ * settings, to configure or rotate the key.
  */
-const BREVO_API_KEY = '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';
-const BREVO_SENDER_EMAIL = 'neromaria.pinoyhomesadelaide@gmail.com';
-const BREVO_SENDER_NAME = 'pinoyhomes';
-
-function checkBrevoConfigured(){
-  if (
-    !BREVO_API_KEY || BREVO_API_KEY === 'YOUR_BREVO_API_KEY' ||
-    !BREVO_SENDER_EMAIL || BREVO_SENDER_EMAIL === 'YOUR_VERIFIED_SENDER@example.com'
-  ){
-    throw new Error('Brevo is not configured. Please enter your API key and verified sender email.');
-  }
-  return true;
-}
+const SEND_EMAIL_ENDPOINT = '/.netlify/functions/send-email';
 
 function pdfFileName(){
   const first = (document.querySelector('[name="a1_first"]')?.value || '').trim();
@@ -819,30 +791,13 @@ function blobToBase64(blob){
 }
 
 async function sendPdfByBrevo(blob, filename, first, last){
-  checkBrevoConfigured();
-
   const pdfBase64 = await blobToBase64(blob);
   const applicantName = (first + ' ' + last).trim() || 'Needs Analysis Submission';
 
-  const payload = {
-    sender: { name: BREVO_SENDER_NAME, email: BREVO_SENDER_EMAIL },
-    to: [ { email: RECIPIENT_EMAIL } ],
-    subject: 'Needs Analysis Submission — ' + applicantName,
-    htmlContent: '<p>Please find the completed Needs Analysis for <strong>' +
-      applicantName + '</strong> attached.</p>',
-    attachment: [
-      { name: filename, content: pdfBase64 }
-    ]
-  };
-
-  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+  const response = await fetch(SEND_EMAIL_ENDPOINT, {
     method: 'POST',
-    headers: {
-      'accept': 'application/json',
-      'content-type': 'application/json',
-      'api-key': BREVO_API_KEY
-    },
-    body: JSON.stringify(payload)
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ filename, pdfBase64, applicantName })
   });
 
   if (!response.ok){
