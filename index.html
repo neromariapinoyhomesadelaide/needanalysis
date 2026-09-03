@@ -50,6 +50,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .review-one-column>div:last-child{border-bottom:0;padding-bottom:0}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
 <body>
 <header>
@@ -314,7 +315,7 @@ Yes, All is correct
 <div class="thankyou" id="thankYou">
 <div class="checkmark">&#10003;</div>
 <h2>Thank you!</h2>
-<p id="thankYouMessage">Thank you for providing us with your information. Your Needs Analysis has been submitted. A PDF copy has been downloaded — forward that PDF to the lender/broker if needed.</p>
+<p id="thankYouMessage">Thank you for providing your information. Your Needs Analysis has been submitted successfully. A PDF copy has been automatically created and emailed to our office.</p>
 <div class="actions">
 <button class="secondary" onclick="startNewSubmission()" type="button">Submit Another Response</button>
 </div>
@@ -708,6 +709,41 @@ document.getElementById('needsForm').addEventListener('submit', function(e){
 
 const RECIPIENT_EMAIL = 'neromaria.pinoyhomesadelaide@gmail.com';
 
+/*
+ * EMAILJS CONFIGURATION
+ * Create a service and email template in EmailJS, then replace these 3 values.
+ *
+ * EMAILJS_PUBLIC_KEY  = Account > API Keys
+ * EMAILJS_SERVICE_ID  = Email Services > your service
+ * EMAILJS_TEMPLATE_ID = Email Templates > your template
+ *
+ * Your EmailJS template should contain an attachment variable named:
+ * {{attachment}}
+ */
+const EMAILJS_PUBLIC_KEY = '0De_fzrwMz2CloGCj';
+const EMAILJS_SERVICE_ID = 'service_peazw79';
+const EMAILJS_TEMPLATE_ID = 'template_8k3i2vi';
+
+let emailJsReady = false;
+
+function initEmailJS(){
+  if (emailJsReady) return true;
+  if (!window.emailjs) throw new Error('EmailJS library did not load.');
+  if (
+    !EMAILJS_PUBLIC_KEY ||
+    EMAILJS_PUBLIC_KEY === 'YOUR_EMAILJS_PUBLIC_KEY' ||
+    !EMAILJS_SERVICE_ID ||
+    EMAILJS_SERVICE_ID === 'YOUR_EMAILJS_SERVICE_ID' ||
+    !EMAILJS_TEMPLATE_ID ||
+    EMAILJS_TEMPLATE_ID === 'YOUR_EMAILJS_TEMPLATE_ID'
+  ){
+    throw new Error('EmailJS is not configured. Please enter your Public Key, Service ID and Template ID.');
+  }
+  emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
+  emailJsReady = true;
+  return true;
+}
+
 function pdfFileName(){
   const first = (document.querySelector('[name="a1_first"]')?.value || '').trim();
   const last = (document.querySelector('[name="a1_surname"]')?.value || '').trim();
@@ -767,15 +803,45 @@ function generatePdfBlob(sections){
   return doc.output('blob');
 }
 
-function downloadBlob(blob, filename){
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
+function blobToDataUri(blob){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Unable to prepare the PDF attachment.'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function sendPdfByEmailJS(blob, filename, first, last){
+  initEmailJS();
+
+  const pdfDataUri = await blobToDataUri(blob);
+  const subject = (first + ' ' + last).trim() || 'Needs Analysis Submission';
+
+  /*
+   * EmailJS sends the PDF directly as an attachment.
+   * No mail app is opened and no manual attachment is required.
+   */
+  const templateParams = {
+    to_email: RECIPIENT_EMAIL,
+    applicant_name: subject,
+    applicant_first_name: first,
+    applicant_last_name: last,
+    subject: subject,
+    message: 'Please find the completed Needs Analysis attached.',
+    attachment: [
+      {
+        name: filename,
+        data: pdfDataUri
+      }
+    ]
+  };
+
+  return emailjs.send(
+    EMAILJS_SERVICE_ID,
+    EMAILJS_TEMPLATE_ID,
+    templateParams
+  );
 }
 
 async function confirmAndSubmit(){
@@ -783,11 +849,9 @@ async function confirmAndSubmit(){
   const confirmBtn = document.getElementById('confirmSubmitBtn');
   const originalBtnText = confirmBtn.textContent;
   confirmBtn.disabled = true;
-  confirmBtn.textContent = 'Preparing…';
+  confirmBtn.textContent = 'Creating PDF & Sending…';
   form.classList.add('sending');
 
-  // Show the actual filled-in form again (not the review summary), and keep both
-  // action bars hidden so buttons don't appear while sending.
   document.getElementById('reviewSummary').style.display = 'none';
   document.getElementById('reviewActions').style.display = 'none';
   document.getElementById('formSections').style.display = '';
@@ -795,57 +859,46 @@ async function confirmAndSubmit(){
   if (thankYouBox) thankYouBox.style.display = 'none';
 
   let submitted = false;
-  let pdfError = null;
 
   try {
     const sections = collectReviewSections();
     const filename = pdfFileName();
     const blob = generatePdfBlob(sections);
 
-    // Download the PDF in the background so it can be attached to the email.
-    downloadBlob(blob, filename);
-
     const first = (document.querySelector('[name="a1_first"]')?.value || '').trim();
     const last = (document.querySelector('[name="a1_surname"]')?.value || '').trim();
-    const subject = (first + ' ' + last).trim() || 'Needs Analysis Submission';
-    const body = 'Please find the applicant\'s Needs Analysis attached (downloaded as "' + filename + '"). Please attach it to this email before sending.';
-    const mailtoUrl = 'mailto:' + encodeURIComponent(RECIPIENT_EMAIL) +
-      '?subject=' + encodeURIComponent(subject) +
-      '&body=' + encodeURIComponent(body);
+
+    await sendPdfByEmailJS(blob, filename, first, last);
 
     document.getElementById('thankYouMessage').textContent =
-      'Thank you for providing us with your information. Your Needs Analysis PDF has been downloaded, and an email draft has been opened — please attach the downloaded PDF before sending.';
+      'Thank you for providing your information. Your Needs Analysis has been submitted successfully. A PDF copy has been automatically created and emailed to our office.';
+
     submitted = true;
-
-    // Give the browser a moment to finish the download before opening the mail client.
-    setTimeout(() => { window.location.href = mailtoUrl; }, 500);
   } catch (error) {
-    console.error('PDF generation error:', error);
-    pdfError = error;
+    console.error('Submission error:', error);
+
+    const reason = error?.text || error?.message || String(error);
+    alert(
+      'The submission could not be sent. Your information has NOT been marked as submitted.\\n\\n' +
+      'Please try again. If the problem continues, please contact us.\\n\\n' +
+      'Error: ' + reason
+    );
   }
 
-  if (!submitted) {
-    // Nothing succeeded — keep the form visible so the user can retry.
-    document.getElementById('formActions').style.display = 'flex';
+  confirmBtn.disabled = false;
+  confirmBtn.textContent = originalBtnText;
+  form.classList.remove('sending');
+
+  if (submitted) {
+    document.getElementById('formSections').style.display = 'none';
+    document.getElementById('formActions').style.display = 'none';
+    document.getElementById('reviewSummary').style.display = 'none';
+    document.getElementById('reviewActions').style.display = 'none';
+    if (thankYouBox) thankYouBox.style.display = 'block';
     window.scrollTo({top:0, behavior:'smooth'});
-    const reason = pdfError ? (pdfError.message || String(pdfError)) : 'unknown error';
-    alert('Something went wrong preparing this submission: ' + reason + '. Please try again or contact us directly.');
-  }
-
-  {
-    confirmBtn.disabled = false;
-    confirmBtn.textContent = originalBtnText;
-    form.classList.remove('sending');
-
-    if (submitted) {
-      // Replace the filled-in form with a clean thank-you confirmation screen.
-      document.getElementById('formSections').style.display = 'none';
-      document.getElementById('formActions').style.display = 'none';
-      if (thankYouBox) thankYouBox.style.display = 'block';
-      window.scrollTo({top:0, behavior:'smooth'});
-    }
   }
 }
+
 
 function startNewSubmission(){
   const form = document.getElementById('needsForm');
