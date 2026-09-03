@@ -50,7 +50,6 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .review-one-column>div:last-child{border-bottom:0;padding-bottom:0}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
 <body>
 <header>
@@ -710,37 +709,39 @@ document.getElementById('needsForm').addEventListener('submit', function(e){
 const RECIPIENT_EMAIL = 'neromaria.pinoyhomesadelaide@gmail.com';
 
 /*
- * EMAILJS CONFIGURATION
- * Create a service and email template in EmailJS, then replace these 3 values.
+ * BREVO CONFIGURATION
+ * ====================================================================
+ * IMPORTANT SECURITY WARNING:
+ * Brevo API keys are meant for server-side use. Putting a real key in
+ * this file means ANYONE who views the page source (or your site's
+ * public HTML) can copy it and send email — or exhaust/abuse your
+ * quota — using your Brevo account. There is no way to fully secure
+ * an API key that ships inside client-side HTML/JS.
  *
- * EMAILJS_PUBLIC_KEY  = Account > API Keys
- * EMAILJS_SERVICE_ID  = Email Services > your service
- * EMAILJS_TEMPLATE_ID = Email Templates > your template
+ * The safer approach is a small server-side relay (e.g. a Netlify/
+ * Vercel function or similar) that holds the key and forwards the
+ * request — this page would call your own endpoint instead of Brevo
+ * directly. This file is wired up per your request to call Brevo
+ * directly from the browser; swap BREVO_API_KEY below for your real
+ * key only if you accept that trade-off, ideally with a restricted,
+ * sending-only key and usage alerts turned on in Brevo.
+ * ====================================================================
  *
- * Your EmailJS template should contain an attachment variable named:
- * {{attachment}}
+ * BREVO_API_KEY      = Brevo > SMTP & API > API Keys
+ * BREVO_SENDER_EMAIL  = an email address verified as a sender in Brevo
+ * BREVO_SENDER_NAME   = display name for the "from" field
  */
-const EMAILJS_PUBLIC_KEY = '0De_fzrwMz2CloGCj';
-const EMAILJS_SERVICE_ID = 'service_peazw79';
-const EMAILJS_TEMPLATE_ID = 'template_0eruffw';
+const BREVO_API_KEY = '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';
+const BREVO_SENDER_EMAIL = 'neromaria.pinoyhomesadelaide@gmail.com';
+const BREVO_SENDER_NAME = 'pinoyhomes';
 
-let emailJsReady = false;
-
-function initEmailJS(){
-  if (emailJsReady) return true;
-  if (!window.emailjs) throw new Error('EmailJS library did not load.');
+function checkBrevoConfigured(){
   if (
-    !EMAILJS_PUBLIC_KEY ||
-    EMAILJS_PUBLIC_KEY === 'YOUR_EMAILJS_PUBLIC_KEY' ||
-    !EMAILJS_SERVICE_ID ||
-    EMAILJS_SERVICE_ID === 'YOUR_EMAILJS_SERVICE_ID' ||
-    !EMAILJS_TEMPLATE_ID ||
-    EMAILJS_TEMPLATE_ID === 'YOUR_EMAILJS_TEMPLATE_ID'
+    !BREVO_API_KEY || BREVO_API_KEY === 'YOUR_BREVO_API_KEY' ||
+    !BREVO_SENDER_EMAIL || BREVO_SENDER_EMAIL === 'YOUR_VERIFIED_SENDER@example.com'
   ){
-    throw new Error('EmailJS is not configured. Please enter your Public Key, Service ID and Template ID.');
+    throw new Error('Brevo is not configured. Please enter your API key and verified sender email.');
   }
-  emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
-  emailJsReady = true;
   return true;
 }
 
@@ -803,45 +804,67 @@ function generatePdfBlob(sections){
   return doc.output('blob');
 }
 
-function blobToDataUri(blob){
+function blobToBase64(blob){
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
+    reader.onload = () => {
+      // reader.result is a data URI like "data:application/pdf;base64,XXXX"
+      // Brevo wants just the base64 payload, no prefix.
+      const base64 = String(reader.result).split(',')[1] || '';
+      resolve(base64);
+    };
     reader.onerror = () => reject(new Error('Unable to prepare the PDF attachment.'));
     reader.readAsDataURL(blob);
   });
 }
 
-async function sendPdfByEmailJS(blob, filename, first, last){
-  initEmailJS();
+async function sendPdfByBrevo(blob, filename, first, last){
+  checkBrevoConfigured();
 
-  const pdfDataUri = await blobToDataUri(blob);
-  const subject = (first + ' ' + last).trim() || 'Needs Analysis Submission';
+  const pdfBase64 = await blobToBase64(blob);
+  const applicantName = (first + ' ' + last).trim() || 'Needs Analysis Submission';
 
-  /*
-   * EmailJS sends the PDF directly as an attachment.
-   * No mail app is opened and no manual attachment is required.
-   */
-  const templateParams = {
-    to_email: RECIPIENT_EMAIL,
-    applicant_name: subject,
-    applicant_first_name: first,
-    applicant_last_name: last,
-    subject: subject,
-    message: 'Please find the completed Needs Analysis attached.',
+  const payload = {
+    sender: { name: BREVO_SENDER_NAME, email: BREVO_SENDER_EMAIL },
+    to: [ { email: RECIPIENT_EMAIL } ],
+    subject: 'Needs Analysis Submission — ' + applicantName,
+    htmlContent: '<p>Please find the completed Needs Analysis for <strong>' +
+      applicantName + '</strong> attached.</p>',
     attachment: [
-      {
-        name: filename,
-        data: pdfDataUri
-      }
+      { name: filename, content: pdfBase64 }
     ]
   };
 
-  return emailjs.send(
-    EMAILJS_SERVICE_ID,
-    EMAILJS_TEMPLATE_ID,
-    templateParams
-  );
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'accept': 'application/json',
+      'content-type': 'application/json',
+      'api-key': BREVO_API_KEY
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok){
+    let detail = '';
+    try { detail = (await response.json()).message || ''; } catch(e) {}
+    throw new Error('Brevo API error (' + response.status + ') ' + detail);
+  }
+
+  return response.json();
+}
+
+// Fire-and-forget: builds the PDF and emails it via Brevo in the
+// background, after the user has already seen the thank-you page.
+// Errors are logged only — they never interrupt the user's flow.
+async function sendReportInBackground(sections, filename, first, last){
+  try {
+    const blob = generatePdfBlob(sections);
+    await sendPdfByBrevo(blob, filename, first, last);
+    console.log('Needs Analysis PDF emailed via Brevo.');
+  } catch (error) {
+    console.error('Background PDF/email submission failed:', error);
+  }
 }
 
 async function confirmAndSubmit(){
@@ -849,54 +872,38 @@ async function confirmAndSubmit(){
   const confirmBtn = document.getElementById('confirmSubmitBtn');
   const originalBtnText = confirmBtn.textContent;
   confirmBtn.disabled = true;
-  confirmBtn.textContent = 'Creating PDF & Sending…';
+  confirmBtn.textContent = 'Submitting…';
   form.classList.add('sending');
 
+  const thankYouBox = document.getElementById('thankYou');
+
+  // Gather everything we need up front, while the form fields are
+  // still in the DOM.
+  const sections = collectReviewSections();
+  const filename = pdfFileName();
+  const first = (document.querySelector('[name="a1_first"]')?.value || '').trim();
+  const last = (document.querySelector('[name="a1_surname"]')?.value || '').trim();
+
+  // Show the thank-you page immediately — submission is treated as
+  // complete from the user's point of view as soon as the form is
+  // captured. The PDF is generated and emailed via Brevo afterwards,
+  // in the background, and does not block or fail the user's flow.
+  document.getElementById('thankYouMessage').textContent =
+    'Thank you for providing your information. Your Needs Analysis has been submitted successfully. A PDF copy is being created and emailed to our office.';
+
+  document.getElementById('formSections').style.display = 'none';
+  document.getElementById('formActions').style.display = 'none';
   document.getElementById('reviewSummary').style.display = 'none';
   document.getElementById('reviewActions').style.display = 'none';
-  document.getElementById('formSections').style.display = '';
-  const thankYouBox = document.getElementById('thankYou');
-  if (thankYouBox) thankYouBox.style.display = 'none';
-
-  let submitted = false;
-
-  try {
-    const sections = collectReviewSections();
-    const filename = pdfFileName();
-    const blob = generatePdfBlob(sections);
-
-    const first = (document.querySelector('[name="a1_first"]')?.value || '').trim();
-    const last = (document.querySelector('[name="a1_surname"]')?.value || '').trim();
-
-    await sendPdfByEmailJS(blob, filename, first, last);
-
-    document.getElementById('thankYouMessage').textContent =
-      'Thank you for providing your information. Your Needs Analysis has been submitted successfully. A PDF copy has been automatically created and emailed to our office.';
-
-    submitted = true;
-  } catch (error) {
-    console.error('Submission error:', error);
-
-    const reason = error?.text || error?.message || String(error);
-    alert(
-      'The submission could not be sent. Your information has NOT been marked as submitted.\\n\\n' +
-      'Please try again. If the problem continues, please contact us.\\n\\n' +
-      'Error: ' + reason
-    );
-  }
+  if (thankYouBox) thankYouBox.style.display = 'block';
+  window.scrollTo({top:0, behavior:'smooth'});
 
   confirmBtn.disabled = false;
   confirmBtn.textContent = originalBtnText;
   form.classList.remove('sending');
 
-  if (submitted) {
-    document.getElementById('formSections').style.display = 'none';
-    document.getElementById('formActions').style.display = 'none';
-    document.getElementById('reviewSummary').style.display = 'none';
-    document.getElementById('reviewActions').style.display = 'none';
-    if (thankYouBox) thankYouBox.style.display = 'block';
-    window.scrollTo({top:0, behavior:'smooth'});
-  }
+  // Background task — intentionally not awaited by the caller.
+  sendReportInBackground(sections, filename, first, last);
 }
 
 
