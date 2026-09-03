@@ -49,7 +49,6 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .review-one-column>div{padding-bottom:8px;border-bottom:1px solid #eef1f4}
 .review-one-column>div:last-child{border-bottom:0;padding-bottom:0}
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 <header>
@@ -717,10 +716,8 @@ async function confirmAndSubmit(){
   confirmBtn.textContent = 'Sending…';
   form.classList.add('sending');
 
-  const filenameDate = new Date().toISOString().slice(0,10);
-
-  // Show the actual filled-in form again (not the review summary) so the PDF reflects it,
-  // and keep both action bars hidden so buttons don't appear in the PDF capture.
+  // Show the actual filled-in form again (not the review summary), and keep both
+  // action bars hidden so buttons don't appear while sending.
   document.getElementById('reviewSummary').style.display = 'none';
   document.getElementById('reviewActions').style.display = 'none';
   document.getElementById('formSections').style.display = '';
@@ -728,24 +725,9 @@ async function confirmAndSubmit(){
   if (thankYouBox) thankYouBox.style.display = 'none';
 
   let submitted = false;
-  let pdfError = null;
   let emailError = null;
 
-  // 1) Generate a PDF snapshot of the form for forwarding to the lender
-  try {
-    await html2pdf().set({
-      margin: 10,
-      filename: 'needs-analysis-'+filenameDate+'.pdf',
-      html2canvas: { scale: 2 },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['css','legacy'] }
-    }).from(form).save();
-  } catch (error) {
-    console.error('PDF generation error:', error);
-    pdfError = error;
-  }
-
-  // 2) Email the submission via Formspree (no attachment, all fields included in the email body)
+  // Email the submission via Formspree (all fields included in the email body)
   try {
     const replyToField = document.getElementById('_replyto') || form.querySelector('[name="_replyto"]');
     if (replyToField) replyToField.value = form.querySelector('[name="a1_email"]')?.value || '';
@@ -761,17 +743,15 @@ async function confirmAndSubmit(){
     try { result = await response.json(); } catch (parseErr) { console.error('Formspree response was not JSON:', parseErr); }
 
     if (response.ok) {
-      document.getElementById('thankYouMessage').textContent = pdfError
-        ? 'Thank you for providing us with your information. Your Needs Analysis has been emailed, but the PDF download failed — please contact us if you need a copy.'
-        : 'Thank you for providing us with your information. Your Needs Analysis has been emailed and a PDF copy has been downloaded — forward that PDF to the lender/broker if needed.';
+      document.getElementById('thankYouMessage').textContent =
+        'Thank you for providing us with your information. Your Needs Analysis has been emailed to us.';
       submitted = true;
     } else {
       const errMsg = (result && result.errors && result.errors.map(e => e.message).join(', ')) || ('HTTP ' + response.status);
       console.error('Formspree submission failed:', errMsg);
       emailError = new Error(errMsg);
-      document.getElementById('thankYouMessage').textContent = pdfError
-        ? 'We could not email your Needs Analysis or generate the PDF (' + errMsg + '). Please try again or contact us directly.'
-        : 'Your PDF was downloaded, but the email could not be sent (' + errMsg + '). Please email the PDF manually.';
+      document.getElementById('thankYouMessage').textContent =
+        'We could not email your Needs Analysis (' + errMsg + '). Please try again or contact us directly.';
       submitted = true;
     }
   } catch (error) {
