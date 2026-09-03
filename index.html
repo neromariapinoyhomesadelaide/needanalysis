@@ -671,8 +671,11 @@ function collectReviewSections(){
   return sections.filter(s => s.rows.length > 0);
 }
 
+let lastCollectedSections = null;
+
 function renderReview(){
-  const sections = collectReviewSections();
+  lastCollectedSections = collectReviewSections();
+  const sections = lastCollectedSections;
   const target = document.getElementById('reviewSections');
   target.innerHTML = sections.map(s =>
     '<div class="card"><h2>'+escapeHtml(s.title)+'</h2><div class="content"><div class="review-one-column">' +
@@ -832,9 +835,10 @@ async function confirmAndSubmit(){
 
   const thankYouBox = document.getElementById('thankYou');
 
-  // Gather everything we need up front, while the form fields are
-  // still in the DOM.
-  const sections = collectReviewSections();
+  // Use the data captured when the review screen was shown — at this
+  // point the original fields are hidden (display:none) so re-scanning
+  // them here would return nothing.
+  const sections = lastCollectedSections || [];
   const filename = pdfFileName();
   const first = (document.querySelector('[name="a1_first"]')?.value || '').trim();
   const last = (document.querySelector('[name="a1_surname"]')?.value || '').trim();
