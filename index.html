@@ -298,11 +298,24 @@ button:disabled{opacity:.5;cursor:not-allowed}
 <textarea name="additional_info" placeholder="Please provide any additional information relevant to your needs analysis."></textarea>
 </div></div>
 <div class="card"><h2>Supporting Documents</h2><div class="content">
-<p class="note" style="font-size:13px;margin-top:0">Upload each document under the correct category. You may add more than one file where required.</p>
-<div class="file-upload-box"><label for="payslipsDocuments"><strong>1. Payslips</strong></label><input id="payslipsDocuments" class="supporting-document-input" data-category="Payslips" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" /><div class="file-list" data-file-list="Payslips"></div></div>
-<div class="file-upload-box"><label for="identificationDocuments"><strong>2. Identification Cards</strong> <span class="note">(Driver's Licence, Passport)</span></label><input id="identificationDocuments" class="supporting-document-input" data-category="Identification Cards" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" /><div class="file-list" data-file-list="Identification Cards"></div></div>
-<div class="file-upload-box"><label for="incomeStatementDocuments"><strong>3. Income Statements (ATO)</strong></label><input id="incomeStatementDocuments" class="supporting-document-input" data-category="Income Statements (ATO)" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" /><div class="file-list" data-file-list="Income Statements (ATO)"></div></div>
-<div class="file-upload-box"><label for="bankStatementDocuments"><strong>4. Bank Statements</strong> <span class="note">(120-day Transaction Reports)</span></label><input id="bankStatementDocuments" class="supporting-document-input" data-category="Bank Statements (120-day Transaction Reports)" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" /><div class="file-list" data-file-list="Bank Statements (120-day Transaction Reports)"></div></div>
+<p class="note" style="font-size:13px;margin-top:0">Upload each document under the correct applicant and category. You may add more than one file where required.</p>
+
+<div class="asset" style="margin-bottom:16px">
+<strong>Applicant 1</strong>
+<div class="file-upload-box"><label for="a1PayslipsDocuments"><strong>1. Payslips</strong></label><input id="a1PayslipsDocuments" class="supporting-document-input" data-category="Applicant 1 — Payslips" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" /><div class="file-list" data-file-list="Applicant 1 — Payslips"></div></div>
+<div class="file-upload-box"><label for="a1IdentificationDocuments"><strong>2. Identification Cards</strong> <span class="note">(Driver's Licence, Passport)</span></label><input id="a1IdentificationDocuments" class="supporting-document-input" data-category="Applicant 1 — Identification Cards" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" /><div class="file-list" data-file-list="Applicant 1 — Identification Cards"></div></div>
+<div class="file-upload-box"><label for="a1IncomeStatementDocuments"><strong>3. Income Statements (ATO)</strong></label><input id="a1IncomeStatementDocuments" class="supporting-document-input" data-category="Applicant 1 — Income Statements (ATO)" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" /><div class="file-list" data-file-list="Applicant 1 — Income Statements (ATO)"></div></div>
+<div class="file-upload-box"><label for="a1BankStatementDocuments"><strong>4. Bank Statements</strong> <span class="note">(120-day Transaction Reports)</span></label><input id="a1BankStatementDocuments" class="supporting-document-input" data-category="Applicant 1 — Bank Statements (120-day Transaction Reports)" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" /><div class="file-list" data-file-list="Applicant 1 — Bank Statements (120-day Transaction Reports)"></div></div>
+</div>
+
+<div class="asset a2-only" id="applicant2SupportingDocuments" style="margin-bottom:16px">
+<strong>Applicant 2</strong>
+<div class="file-upload-box"><label for="a2PayslipsDocuments"><strong>1. Payslips</strong></label><input id="a2PayslipsDocuments" class="supporting-document-input" data-category="Applicant 2 — Payslips" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" /><div class="file-list" data-file-list="Applicant 2 — Payslips"></div></div>
+<div class="file-upload-box"><label for="a2IdentificationDocuments"><strong>2. Identification Cards</strong> <span class="note">(Driver's Licence, Passport)</span></label><input id="a2IdentificationDocuments" class="supporting-document-input" data-category="Applicant 2 — Identification Cards" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" /><div class="file-list" data-file-list="Applicant 2 — Identification Cards"></div></div>
+<div class="file-upload-box"><label for="a2IncomeStatementDocuments"><strong>3. Income Statements (ATO)</strong></label><input id="a2IncomeStatementDocuments" class="supporting-document-input" data-category="Applicant 2 — Income Statements (ATO)" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" /><div class="file-list" data-file-list="Applicant 2 — Income Statements (ATO)"></div></div>
+<div class="file-upload-box"><label for="a2BankStatementDocuments"><strong>4. Bank Statements</strong> <span class="note">(120-day Transaction Reports)</span></label><input id="a2BankStatementDocuments" class="supporting-document-input" data-category="Applicant 2 — Bank Statements (120-day Transaction Reports)" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" /><div class="file-list" data-file-list="Applicant 2 — Bank Statements (120-day Transaction Reports)"></div></div>
+</div>
+
 <p class="note">PDF, JPG, PNG, DOC or DOCX. Maximum 10 MB per file, up to 10 files in total.</p><div class="upload-status" id="uploadStatus"></div>
 </div></div>
 <div class="card"><h2>Disclaimer</h2><div class="content">
@@ -543,7 +556,7 @@ function loadOfficialSuburbs(){
       postal.title = 'Automatically filled from the selected suburb.';
     }
 
-    if (status) status.textContent = `${SA_SUBURB_NAMES.length} South Australia suburbs/localities loaded.`;
+    if (status) { status.textContent = ''; status.style.display = 'none'; }
   });
 }
 
@@ -589,6 +602,10 @@ function toggleApplicant2(){
     el.style.display = adding ? 'block' : 'none';
   });
   btn.textContent = adding ? '− Remove Applicant 2' : '+ Add Applicant 2';
+  if (!adding) {
+    selectedSupportingFiles = selectedSupportingFiles.filter(x => !String(x.category || '').startsWith('Applicant 2 — '));
+    renderSupportingFiles();
+  }
   if (adding) card.scrollIntoView({behavior:'smooth', block:'start'});
 }
 
