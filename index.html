@@ -694,7 +694,11 @@ function collectReviewSections(){
     if (el.tagName === 'BUTTON') return;
     if (el.type === 'hidden' || el.type === 'button' || el.type === 'submit') return;
     if (el.type === 'file') {
-      if (selectedSupportingFiles.length) current.rows.push({label:'Selected files', value:selectedSupportingFiles.map(x=>x.category + ': ' + x.file.name).join(', ')});
+      const category = el.dataset.category || 'Supporting Documents';
+      const categoryFiles = selectedSupportingFiles.filter(x => x.category === category);
+      if (categoryFiles.length) {
+        current.rows.push({label: category, value: categoryFiles.map(x => x.file.name).join(', ')});
+      }
       return;
     }
     if (skipNames.includes(el.name)) return;
