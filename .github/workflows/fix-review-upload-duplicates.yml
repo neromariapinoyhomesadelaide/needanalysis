@@ -1,0 +1,54 @@
+name: Fix review upload duplicates
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-review-upload-duplicates.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fix review supporting document rendering
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text()
+          old = """    if (el.type === 'file') {
+      if (selectedSupportingFiles.length) current.rows.push({label:'Selected files', value:selectedSupportingFiles.map(x=>x.category + ': ' + x.file.name).join(', ')});
+      return;
+    }"""
+          new = """    if (el.type === 'file') {
+      const category = el.dataset.category || 'Supporting Documents';
+      const categoryFiles = selectedSupportingFiles.filter(x => x.category === category);
+      if (categoryFiles.length) {
+        current.rows.push({label: category, value: categoryFiles.map(x => x.file.name).join(', ')});
+      }
+      return;
+    }"""
+          if old not in s:
+              raise SystemExit('Target review upload block not found; no changes made.')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+
+      - name: Commit fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          if git diff --cached --quiet; then
+            echo 'No changes to commit.'
+          else
+            git commit -m 'Fix duplicate supporting documents in review'
+            git push
+          fi
