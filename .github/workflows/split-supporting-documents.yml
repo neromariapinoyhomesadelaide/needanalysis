@@ -1,4 +1,4 @@
-name: Split supporting document uploads
+name: Fix supporting document review
 
 on:
   push:
@@ -16,56 +16,31 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Update supporting document fields
+      - name: Fix review supporting document rows
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
           p=Path('index.html')
           s=p.read_text()
-          new_html='''<div class="card"><h2>Supporting Documents</h2><div class="content">
-          <p class="note" style="font-size:13px;margin-top:0">Upload each document under the correct category. You may add more than one file where required.</p>
-          <div class="file-upload-box"><label for="payslipsDocuments"><strong>1. Payslips</strong></label><input id="payslipsDocuments" class="supporting-document-input" data-category="Payslips" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" /><div class="file-list" data-file-list="Payslips"></div></div>
-          <div class="file-upload-box"><label for="identificationDocuments"><strong>2. Identification Cards</strong> <span class="note">(Driver's Licence, Passport)</span></label><input id="identificationDocuments" class="supporting-document-input" data-category="Identification Cards" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" /><div class="file-list" data-file-list="Identification Cards"></div></div>
-          <div class="file-upload-box"><label for="incomeStatementDocuments"><strong>3. Income Statements (ATO)</strong></label><input id="incomeStatementDocuments" class="supporting-document-input" data-category="Income Statements (ATO)" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" /><div class="file-list" data-file-list="Income Statements (ATO)"></div></div>
-          <div class="file-upload-box"><label for="bankStatementDocuments"><strong>4. Bank Statements</strong> <span class="note">(120-day Transaction Reports)</span></label><input id="bankStatementDocuments" class="supporting-document-input" data-category="Bank Statements (120-day Transaction Reports)" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" /><div class="file-list" data-file-list="Bank Statements (120-day Transaction Reports)"></div></div>
-          <p class="note">PDF, JPG, PNG, DOC or DOCX. Maximum 10 MB per file, up to 10 files in total.</p><div class="upload-status" id="uploadStatus"></div>
-          </div></div>'''
-          s,n=re.subn(r'<div class="card"><h2>Supporting Documents</h2>.*?</div></div>\n<div class="card"><h2>Disclaimer</h2>',new_html+'\n<div class="card"><h2>Disclaimer</h2>',s,count=1,flags=re.S)
-          assert n==1, 'Supporting Documents block not found'
-          start=s.index('const MAX_UPLOAD_FILES = 10;')
-          end=s.index('function toggleSubmitEnabled(){',start)
-          new_js=r'''const MAX_UPLOAD_FILES = 10;
-          const MAX_FILE_BYTES = 10 * 1024 * 1024;
-          const ALLOWED_FILE_EXTENSIONS = ['pdf','jpg','jpeg','png','doc','docx'];
-          let selectedSupportingFiles = [];
-
-          function humanFileSize(bytes){ if(bytes<1024)return bytes+' B'; if(bytes<1024*1024)return(bytes/1024).toFixed(1)+' KB'; return(bytes/(1024*1024)).toFixed(1)+' MB'; }
-          function validateSupportingFile(file){ const ext=(file.name.split('.').pop()||'').toLowerCase(); if(!ALLOWED_FILE_EXTENSIONS.includes(ext))return 'Unsupported file type: '+file.name; if(file.size>MAX_FILE_BYTES)return file.name+' is larger than 10 MB.'; return ''; }
-          function addSupportingFiles(fileList, category){
-            const errors=[];
-            Array.from(fileList||[]).forEach(file=>{ const error=validateSupportingFile(file); if(error){errors.push(error);return;} const duplicate=selectedSupportingFiles.some(x=>x.category===category&&x.file.name===file.name&&x.file.size===file.size&&x.file.lastModified===file.lastModified); if(!duplicate)selectedSupportingFiles.push({file,category}); });
-            if(selectedSupportingFiles.length>MAX_UPLOAD_FILES){selectedSupportingFiles=selectedSupportingFiles.slice(0,MAX_UPLOAD_FILES);errors.push('A maximum of 10 files can be uploaded.');}
-            renderSupportingFiles(); setUploadStatus(errors.join(' '),errors.length?'error':'');
-          }
-          function removeSupportingFile(index){selectedSupportingFiles.splice(index,1);renderSupportingFiles();}
-          function renderSupportingFiles(){
-            document.querySelectorAll('[data-file-list]').forEach(target=>{ const category=target.dataset.fileList; target.innerHTML=selectedSupportingFiles.map((x,index)=>({x,index})).filter(v=>v.x.category===category).map(v=>'<div class="file-item"><span class="file-meta">📎 '+escapeHtml(v.x.file.name)+' — '+humanFileSize(v.x.file.size)+'</span><button class="file-remove" type="button" onclick="removeSupportingFile('+v.index+')">Remove</button></div>').join(''); });
-          }
-          function setUploadStatus(message,type){const el=document.getElementById('uploadStatus');if(!el)return;el.textContent=message||'';el.className='upload-status'+(type?' '+type:'');}
-          document.querySelectorAll('.supporting-document-input').forEach(input=>input.addEventListener('change',e=>{addSupportingFiles(e.target.files,e.target.dataset.category);e.target.value='';}));
-
-          '''
-          s=s[:start]+new_js+s[end:]
-          s=s.replace("if (selectedSupportingFiles.length) current.rows.push({label:'Selected files', value:selectedSupportingFiles.map(f=>f.name).join(', ')});","if (selectedSupportingFiles.length) current.rows.push({label:'Selected files', value:selectedSupportingFiles.map(x=>x.category + ': ' + x.file.name).join(', ')});")
-          s=s.replace("const file = files[i];\n    setUploadStatus('Uploading ' + (i + 1) + ' of ' + files.length + ': ' + file.name);","const item = files[i];\n    const file = item.file || item;\n    const category = item.category || 'Supporting Document';\n    setUploadStatus('Uploading ' + (i + 1) + ' of ' + files.length + ': ' + category + ' — ' + file.name);")
-          s=s.replace("uploaded.push({ name: file.name, path: signed.path, size: file.size, type: file.type || 'application/octet-stream' });","uploaded.push({ name: file.name, category, path: signed.path, size: file.size, type: file.type || 'application/octet-stream' });")
-          p.write_text(s)
+          old="""    if (el.type === 'file') {
+      if (selectedSupportingFiles.length) current.rows.push({label:'Selected files', value:selectedSupportingFiles.map(x=>x.category + ': ' + x.file.name).join(', ')});
+      return;
+    }"""
+          new="""    if (el.type === 'file') {
+      const category = el.dataset.category || 'Supporting Documents';
+      const categoryFiles = selectedSupportingFiles.filter(x => x.category === category);
+      if (categoryFiles.length) {
+        current.rows.push({label: category, value: categoryFiles.map(x => x.file.name).join(', ')});
+      }
+      return;
+    }"""
+          assert old in s, 'Review file-input block not found'
+          p.write_text(s.replace(old,new,1))
           PY
       - name: Commit form update
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html
-          git commit -m "Use separate supporting document upload fields"
+          git commit -m "Fix duplicate supporting documents in review"
           git push
