@@ -298,14 +298,12 @@ button:disabled{opacity:.5;cursor:not-allowed}
 <textarea name="additional_info" placeholder="Please provide any additional information relevant to your needs analysis."></textarea>
 </div></div>
 <div class="card"><h2>Supporting Documents</h2><div class="content">
-<p class="note" style="font-size:13px;margin-top:0">Upload supporting documents such as payslips, bank statements or identification. You can select multiple files.</p>
-<div class="file-upload-box" id="fileDropZone">
-<label for="supportingDocuments" style="font-size:14px">Choose files or drag and drop them here</label>
-<input id="supportingDocuments" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" />
-<p class="note">PDF, JPG, PNG, DOC or DOCX. Maximum 10 MB per file, up to 10 files.</p>
-<div class="file-list" id="fileList"></div>
-<div class="upload-status" id="uploadStatus"></div>
-</div>
+<p class="note" style="font-size:13px;margin-top:0">Upload each document under the correct category. You may add more than one file where required.</p>
+<div class="file-upload-box"><label for="payslipsDocuments"><strong>1. Payslips</strong></label><input id="payslipsDocuments" class="supporting-document-input" data-category="Payslips" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" /><div class="file-list" data-file-list="Payslips"></div></div>
+<div class="file-upload-box"><label for="identificationDocuments"><strong>2. Identification Cards</strong> <span class="note">(Driver's Licence, Passport)</span></label><input id="identificationDocuments" class="supporting-document-input" data-category="Identification Cards" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" /><div class="file-list" data-file-list="Identification Cards"></div></div>
+<div class="file-upload-box"><label for="incomeStatementDocuments"><strong>3. Income Statements (ATO)</strong></label><input id="incomeStatementDocuments" class="supporting-document-input" data-category="Income Statements (ATO)" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" /><div class="file-list" data-file-list="Income Statements (ATO)"></div></div>
+<div class="file-upload-box"><label for="bankStatementDocuments"><strong>4. Bank Statements</strong> <span class="note">(120-day Transaction Reports)</span></label><input id="bankStatementDocuments" class="supporting-document-input" data-category="Bank Statements (120-day Transaction Reports)" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" /><div class="file-list" data-file-list="Bank Statements (120-day Transaction Reports)"></div></div>
+<p class="note">PDF, JPG, PNG, DOC or DOCX. Maximum 10 MB per file, up to 10 files in total.</p><div class="upload-status" id="uploadStatus"></div>
 </div></div>
 <div class="card"><h2>Disclaimer</h2><div class="content">
 <p>I agree that the information provided in this Needs Analysis is true and correct to the best of my knowledge. I authorise Pinoy Homes Pty Ltd to share this information with relevant parties, including but not limited to mortgage brokers, lenders, and other professionals, for the purpose of assessing and progressing my application.</p>
@@ -657,63 +655,20 @@ const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_FILE_EXTENSIONS = ['pdf','jpg','jpeg','png','doc','docx'];
 let selectedSupportingFiles = [];
 
-function humanFileSize(bytes){
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+function humanFileSize(bytes){ if(bytes<1024)return bytes+' B'; if(bytes<1024*1024)return(bytes/1024).toFixed(1)+' KB'; return(bytes/(1024*1024)).toFixed(1)+' MB'; }
+function validateSupportingFile(file){ const ext=(file.name.split('.').pop()||'').toLowerCase(); if(!ALLOWED_FILE_EXTENSIONS.includes(ext))return 'Unsupported file type: '+file.name; if(file.size>MAX_FILE_BYTES)return file.name+' is larger than 10 MB.'; return ''; }
+function addSupportingFiles(fileList, category){
+  const errors=[];
+  Array.from(fileList||[]).forEach(file=>{ const error=validateSupportingFile(file); if(error){errors.push(error);return;} const duplicate=selectedSupportingFiles.some(x=>x.category===category&&x.file.name===file.name&&x.file.size===file.size&&x.file.lastModified===file.lastModified); if(!duplicate)selectedSupportingFiles.push({file,category}); });
+  if(selectedSupportingFiles.length>MAX_UPLOAD_FILES){selectedSupportingFiles=selectedSupportingFiles.slice(0,MAX_UPLOAD_FILES);errors.push('A maximum of 10 files can be uploaded.');}
+  renderSupportingFiles(); setUploadStatus(errors.join(' '),errors.length?'error':'');
 }
-
-function validateSupportingFile(file){
-  const ext = (file.name.split('.').pop() || '').toLowerCase();
-  if (!ALLOWED_FILE_EXTENSIONS.includes(ext)) return 'Unsupported file type: ' + file.name;
-  if (file.size > MAX_FILE_BYTES) return file.name + ' is larger than 10 MB.';
-  return '';
-}
-
-function addSupportingFiles(fileList){
-  const incoming = Array.from(fileList || []);
-  const errors = [];
-  incoming.forEach(file => {
-    const error = validateSupportingFile(file);
-    if (error) { errors.push(error); return; }
-    const duplicate = selectedSupportingFiles.some(f => f.name === file.name && f.size === file.size && f.lastModified === file.lastModified);
-    if (!duplicate) selectedSupportingFiles.push(file);
-  });
-  if (selectedSupportingFiles.length > MAX_UPLOAD_FILES){
-    selectedSupportingFiles = selectedSupportingFiles.slice(0, MAX_UPLOAD_FILES);
-    errors.push('A maximum of 10 files can be uploaded.');
-  }
-  renderSupportingFiles();
-  setUploadStatus(errors.join(' '), errors.length ? 'error' : '');
-}
-
-function removeSupportingFile(index){
-  selectedSupportingFiles.splice(index, 1);
-  renderSupportingFiles();
-}
-
+function removeSupportingFile(index){selectedSupportingFiles.splice(index,1);renderSupportingFiles();}
 function renderSupportingFiles(){
-  const target = document.getElementById('fileList');
-  if (!target) return;
-  target.innerHTML = selectedSupportingFiles.map((file, index) =>
-    '<div class="file-item"><span class="file-meta">📎 ' + escapeHtml(file.name) + ' — ' + humanFileSize(file.size) + '</span>' +
-    '<button class="file-remove" type="button" onclick="removeSupportingFile(' + index + ')">Remove</button></div>'
-  ).join('');
+  document.querySelectorAll('[data-file-list]').forEach(target=>{ const category=target.dataset.fileList; target.innerHTML=selectedSupportingFiles.map((x,index)=>({x,index})).filter(v=>v.x.category===category).map(v=>'<div class="file-item"><span class="file-meta">📎 '+escapeHtml(v.x.file.name)+' — '+humanFileSize(v.x.file.size)+'</span><button class="file-remove" type="button" onclick="removeSupportingFile('+v.index+')">Remove</button></div>').join(''); });
 }
-
-function setUploadStatus(message, type){
-  const el = document.getElementById('uploadStatus');
-  if (!el) return;
-  el.textContent = message || '';
-  el.className = 'upload-status' + (type ? ' ' + type : '');
-}
-
-const supportingInput = document.getElementById('supportingDocuments');
-const fileDropZone = document.getElementById('fileDropZone');
-supportingInput?.addEventListener('change', e => { addSupportingFiles(e.target.files); e.target.value = ''; });
-['dragenter','dragover'].forEach(type => fileDropZone?.addEventListener(type, e => { e.preventDefault(); fileDropZone.classList.add('dragover'); }));
-['dragleave','drop'].forEach(type => fileDropZone?.addEventListener(type, e => { e.preventDefault(); fileDropZone.classList.remove('dragover'); }));
-fileDropZone?.addEventListener('drop', e => addSupportingFiles(e.dataTransfer.files));
+function setUploadStatus(message,type){const el=document.getElementById('uploadStatus');if(!el)return;el.textContent=message||'';el.className='upload-status'+(type?' '+type:'');}
+document.querySelectorAll('.supporting-document-input').forEach(input=>input.addEventListener('change',e=>{addSupportingFiles(e.target.files,e.target.dataset.category);e.target.value='';}));
 
 function toggleSubmitEnabled(){
   const cb = document.getElementById('disclaimer_agree');
@@ -739,7 +694,7 @@ function collectReviewSections(){
     if (el.tagName === 'BUTTON') return;
     if (el.type === 'hidden' || el.type === 'button' || el.type === 'submit') return;
     if (el.type === 'file') {
-      if (selectedSupportingFiles.length) current.rows.push({label:'Selected files', value:selectedSupportingFiles.map(f=>f.name).join(', ')});
+      if (selectedSupportingFiles.length) current.rows.push({label:'Selected files', value:selectedSupportingFiles.map(x=>x.category + ': ' + x.file.name).join(', ')});
       return;
     }
     if (skipNames.includes(el.name)) return;
@@ -909,15 +864,17 @@ async function uploadSupportingDocuments(files, submissionId){
 
   const uploaded = [];
   for (let i = 0; i < files.length; i++){
-    const file = files[i];
-    setUploadStatus('Uploading ' + (i + 1) + ' of ' + files.length + ': ' + file.name);
+    const item = files[i];
+    const file = item.file || item;
+    const category = item.category || 'Supporting Document';
+    setUploadStatus('Uploading ' + (i + 1) + ' of ' + files.length + ': ' + category + ' — ' + file.name);
     const signed = await requestSignedUpload(file, submissionId);
     const client = window.supabase.createClient(signed.supabaseUrl, signed.supabaseAnonKey);
     const { error } = await client.storage
       .from(signed.bucket)
       .uploadToSignedUrl(signed.path, signed.token, file, { contentType: file.type || 'application/octet-stream' });
     if (error) throw new Error('Upload failed for ' + file.name + ': ' + error.message);
-    uploaded.push({ name: file.name, path: signed.path, size: file.size, type: file.type || 'application/octet-stream' });
+    uploaded.push({ name: file.name, category, path: signed.path, size: file.size, type: file.type || 'application/octet-stream' });
   }
   setUploadStatus(files.length + ' supporting document' + (files.length === 1 ? '' : 's') + ' uploaded securely.', 'success');
   return uploaded;
