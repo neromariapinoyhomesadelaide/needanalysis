@@ -770,7 +770,7 @@ document.getElementById('needsForm').addEventListener('submit', function(e){
 // functions itself. The Brevo-sending function instead runs on
 // Netlify, so this must be the FULL cross-origin URL, not a relative
 // path. Update this if your Netlify site's URL ever changes.
-const SEND_EMAIL_ENDPOINT = '/.netlify/functions/send-email';
+const SEND_EMAIL_ENDPOINT = 'https://dreamy-taiyaki-dded84.netlify.app/.netlify/functions/send-email';
 
 function pdfFileName(){
   const first = (document.querySelector('[name="a1_first"]')?.value || '').trim();
