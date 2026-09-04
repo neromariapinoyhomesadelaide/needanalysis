@@ -1,90 +1,158 @@
 // Netlify Function: send-email
-//
-// This runs on Netlify's server, never in the browser. It holds the
-// Brevo API key as an environment variable (set in the Netlify site
-// dashboard, NOT in this file and NOT in the repo), and forwards the
-// PDF attachment + recipient details to Brevo's transactional email API.
-//
-// The live form is hosted on GitHub Pages, not on this Netlify site,
-// so this is called cross-origin from:
-//   https://neromariapinoyhomesadelaide.github.io/needanalysis/
-// The CORS headers below explicitly allow that origin (and no other)
-// to call this function from a browser.
+// Handles (1) signed Supabase upload tokens and (2) Brevo PDF notification email.
+// Secrets must be configured in Netlify Environment Variables, never in browser code.
 
-const ALLOWED_ORIGIN = 'https://neromariapinoyhomesadelaide.github.io';
+const { createClient } = require('@supabase/supabase-js');
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type'
-};
+const DEFAULT_ALLOWED_ORIGINS = [
+  'https://neromariapinoyhomesadelaide.github.io',
+  'https://dreamy-taiyaki-dded84.netlify.app'
+];
+const STORAGE_BUCKET = process.env.SUPABASE_BUCKET || 'needs-analysis-documents';
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const ALLOWED_EXTENSIONS = new Set(['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx']);
+
+function getAllowedOrigins() {
+  const configured = (process.env.ALLOWED_ORIGINS || '')
+    .split(',').map(x => x.trim()).filter(Boolean);
+  return [...new Set([...DEFAULT_ALLOWED_ORIGINS, ...configured])];
+}
+
+function corsHeaders(event) {
+  const origin = event.headers?.origin || event.headers?.Origin || '';
+  const allowed = getAllowedOrigins();
+  return {
+    'Access-Control-Allow-Origin': allowed.includes(origin) ? origin : allowed[0],
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Vary': 'Origin',
+    'Content-Type': 'application/json'
+  };
+}
+
+function json(statusCode, body, headers) {
+  return { statusCode, headers, body: JSON.stringify(body) };
+}
+
+function cleanName(name = 'file') {
+  return String(name)
+    .normalize('NFKD')
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .replace(/_+/g, '_')
+    .slice(0, 140) || 'file';
+}
+
+function cleanId(id = '') {
+  return String(id).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80);
+}
+
+function escapeHtml(value = '') {
+  return String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+}
 
 exports.handler = async function (event) {
-  // Browsers send a preflight OPTIONS request before the real POST
-  // for cross-origin calls like this one — it must get a 200 with
-  // the CORS headers, or the browser blocks the actual request.
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers: corsHeaders, body: '' };
-  }
+  const headers = corsHeaders(event);
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
+  if (event.httpMethod !== 'POST') return json(405, { error: 'Method Not Allowed' }, headers);
 
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers: corsHeaders, body: 'Method Not Allowed' };
-  }
-
-  const BREVO_API_KEY = process.env.BREVO_API_KEY;
-  const RECIPIENT_EMAIL = 'neromaria.pinoyhomesadelaide@gmail.com';
-  const SENDER_EMAIL = 'neromaria.pinoyhomesadelaide@gmail.com';
-  const SENDER_NAME = 'pinoyhomes';
-
-  if (!BREVO_API_KEY) {
-    return {
-      statusCode: 500,
-      headers: corsHeaders,
-      body: JSON.stringify({ error: 'BREVO_API_KEY is not configured on the server.' })
-    };
+  const origin = event.headers?.origin || event.headers?.Origin || '';
+  if (origin && !getAllowedOrigins().includes(origin)) {
+    return json(403, { error: 'Origin not allowed.' }, headers);
   }
 
   let data;
-  try {
-    data = JSON.parse(event.body || '{}');
-  } catch (e) {
-    return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'Invalid JSON body.' }) };
+  try { data = JSON.parse(event.body || '{}'); }
+  catch { return json(400, { error: 'Invalid JSON body.' }, headers); }
+
+  const SUPABASE_URL = process.env.SUPABASE_URL;
+  const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_ANON_KEY) {
+    return json(500, { error: 'Supabase environment variables are incomplete.' }, headers);
   }
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
 
-  const { filename, pdfBase64, applicantName } = data;
-
-  if (!filename || !pdfBase64) {
-    return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'filename and pdfBase64 are required.' }) };
-  }
-
-  const payload = {
-    sender: { name: SENDER_NAME, email: SENDER_EMAIL },
-    to: [{ email: RECIPIENT_EMAIL }],
-    subject: 'Needs Analysis Submission — ' + (applicantName || 'Needs Analysis Submission'),
-    htmlContent: '<p>Please find the completed Needs Analysis for <strong>' +
-      (applicantName || 'the applicant') + '</strong> attached.</p>',
-    attachment: [{ name: filename, content: pdfBase64 }]
-  };
-
-  try {
-    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
-      method: 'POST',
-      headers: {
-        'accept': 'application/json',
-        'content-type': 'application/json',
-        'api-key': BREVO_API_KEY
-      },
-      body: JSON.stringify(payload)
-    });
-
-    const resultText = await response.text();
-
-    if (!response.ok) {
-      return { statusCode: response.status, headers: corsHeaders, body: resultText };
+  if (data.action === 'create-upload') {
+    const submissionId = cleanId(data.submissionId);
+    const fileName = cleanName(data.fileName);
+    const fileSize = Number(data.fileSize || 0);
+    const ext = (fileName.split('.').pop() || '').toLowerCase();
+    if (!submissionId || !fileName) return json(400, { error: 'submissionId and fileName are required.' }, headers);
+    if (!ALLOWED_EXTENSIONS.has(ext)) return json(400, { error: 'Unsupported file type.' }, headers);
+    if (!Number.isFinite(fileSize) || fileSize <= 0 || fileSize > MAX_FILE_BYTES) {
+      return json(400, { error: 'Each file must be between 1 byte and 10 MB.' }, headers);
     }
 
-    return { statusCode: 200, headers: corsHeaders, body: resultText };
-  } catch (error) {
-    return { statusCode: 500, headers: corsHeaders, body: JSON.stringify({ error: String(error) }) };
+    const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${fileName}`;
+    const path = `submissions/${submissionId}/${unique}`;
+    const { data: signed, error } = await supabase.storage.from(STORAGE_BUCKET).createSignedUploadUrl(path);
+    if (error) return json(500, { error: 'Could not create upload link: ' + error.message }, headers);
+
+    return json(200, {
+      bucket: STORAGE_BUCKET,
+      path,
+      token: signed.token,
+      supabaseUrl: SUPABASE_URL,
+      supabaseAnonKey: SUPABASE_ANON_KEY
+    }, headers);
   }
+
+  if (data.action === 'send-email' || !data.action) {
+    const BREVO_API_KEY = process.env.BREVO_API_KEY;
+    const RECIPIENT_EMAIL = process.env.RECIPIENT_EMAIL || 'neromaria.pinoyhomesadelaide@gmail.com';
+    const SENDER_EMAIL = process.env.SENDER_EMAIL || 'neromaria.pinoyhomesadelaide@gmail.com';
+    const SENDER_NAME = process.env.SENDER_NAME || 'Pinoy Homes Adelaide';
+    if (!BREVO_API_KEY) return json(500, { error: 'BREVO_API_KEY is not configured.' }, headers);
+
+    const { filename, pdfBase64, applicantName, submissionId } = data;
+    const uploadedFiles = Array.isArray(data.uploadedFiles) ? data.uploadedFiles.slice(0, 10) : [];
+    if (!filename || !pdfBase64) return json(400, { error: 'filename and pdfBase64 are required.' }, headers);
+
+    const links = [];
+    for (const file of uploadedFiles) {
+      if (!file?.path || !file?.name) continue;
+      const { data: signed, error } = await supabase.storage.from(STORAGE_BUCKET).createSignedUrl(file.path, 60 * 60 * 24 * 7, { download: file.name });
+      if (!error && signed?.signedUrl) links.push({ name: file.name, url: signed.signedUrl });
+    }
+
+    const safeApplicant = escapeHtml(applicantName || 'the applicant');
+    const documentsHtml = links.length
+      ? '<p><strong>Supporting documents (secure links, expire in 7 days):</strong></p><ul>' +
+        links.map(f => `<li><a href="${escapeHtml(f.url)}">${escapeHtml(f.name)}</a></li>`).join('') + '</ul>'
+      : (uploadedFiles.length ? '<p>Supporting documents were uploaded, but secure links could not be generated. Check Supabase Storage.</p>' : '<p>No supporting documents were uploaded.</p>');
+
+    const payload = {
+      sender: { name: SENDER_NAME, email: SENDER_EMAIL },
+      to: [{ email: RECIPIENT_EMAIL }],
+      subject: 'Needs Analysis Submission — ' + (applicantName || 'Needs Analysis Submission'),
+      htmlContent:
+        `<p>Please find the completed Needs Analysis for <strong>${safeApplicant}</strong> attached.</p>` +
+        (submissionId ? `<p><strong>Submission ID:</strong> ${escapeHtml(submissionId)}</p>` : '') +
+        documentsHtml,
+      attachment: [{ name: cleanName(filename), content: pdfBase64 }]
+    };
+
+    try {
+      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          accept: 'application/json',
+          'content-type': 'application/json',
+          'api-key': BREVO_API_KEY
+        },
+        body: JSON.stringify(payload)
+      });
+      const resultText = await response.text();
+      if (!response.ok) return { statusCode: response.status, headers, body: resultText };
+      let result = {};
+      try { result = JSON.parse(resultText); } catch { result = { result: resultText }; }
+      return json(200, { ...result, uploadedDocumentCount: uploadedFiles.length }, headers);
+    } catch (error) {
+      return json(500, { error: String(error) }, headers);
+    }
+  }
+
+  return json(400, { error: 'Unknown action.' }, headers);
 };
