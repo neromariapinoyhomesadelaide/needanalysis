@@ -1,0 +1,1 @@
+Force GitHub Pages rebuild after supporting document upload fields were split into Payslips, Identification Cards, Income Statements (ATO), and Bank Statements.
