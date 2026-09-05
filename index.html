@@ -70,6 +70,11 @@ button:disabled{opacity:.5;cursor:not-allowed}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+/* FORCE_HIDE_PROGRESS_NAV */
+.progress-shell,.progress-current,.progress-nav,.progress-bar-track,.progress-applicant-row,.progress-applicant{display:none!important}
+</style>
 </head>
 <body>
 <header>
@@ -1011,6 +1016,16 @@ function startNewSubmission(){
     });
   });
 })();
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded',function(){
+  document.querySelectorAll('.progress-shell,.progress-current,.progress-nav,.progress-bar-track,.progress-applicant-row,.progress-applicant').forEach(function(el){el.remove();});
+  Array.from(document.querySelectorAll('body *')).forEach(function(el){
+    var t=(el.textContent||'').trim();
+    if(t==='Step 1 of 6 — Personal Details'){ el.remove(); }
+  });
+});
 </script>
 </body>
 </html>
