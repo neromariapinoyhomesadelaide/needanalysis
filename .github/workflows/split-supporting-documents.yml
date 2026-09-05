@@ -16,12 +16,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Add option for another income
-        run: python3 .github/add-additional-income.py
+      - name: Fix additional income targets
+        run: python3 .github/fix-additional-income-targets.py
       - name: Commit form update
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html
-          git diff --cached --quiet || git commit -m "Add option to add another income"
+          git diff --cached --quiet || git commit -m "Fix Add Another Income placement"
           git push
