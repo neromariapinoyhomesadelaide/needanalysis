@@ -2,3 +2,4 @@ GitHub Pages rebuild trigger for Needs Analysis form.
 Secure upload frontend endpoint points to the live Netlify function.
 Applicant-specific supporting document upload UI is enabled.
 Publish Applicant 2 button relocation and applicant-aware progress indicator.
+Publish Household / Shared Information section and seven-step progress navigation.
