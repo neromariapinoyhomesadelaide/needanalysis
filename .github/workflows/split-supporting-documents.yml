@@ -16,12 +16,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Force hide and remove Progress Bar and Indicator
-        run: python3 .github/force-hide-progress.py
+      - name: Add option for another income
+        run: python3 .github/add-additional-income.py
       - name: Commit form update
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html
-          git diff --cached --quiet || git commit -m "Force remove Progress Bar and Indicator"
+          git diff --cached --quiet || git commit -m "Add option to add another income"
           git push
