@@ -1042,15 +1042,15 @@ document.addEventListener('DOMContentLoaded',function(){
 <script>
 (function(){
   function incomeCards(){
-    const headings=[...document.querySelectorAll('.card h2,.card h3')];
-    let cards=headings.filter(h=>/^income\s*&\s*expenses$/i.test((h.textContent||'').trim())).map(h=>h.closest('.card')).filter(Boolean);
-    if(!cards.length){
-      cards=headings.filter(h=>/^income$/i.test((h.textContent||'').trim())).map(h=>h.closest('.card')).filter(Boolean);
-    }
-    return [...new Set(cards)];
+    const targets=[];
+    const grossHeading=[...document.querySelectorAll('.card h2')].find(h=>/^gross\s+income$/i.test((h.textContent||'').trim()));
+    if(grossHeading && grossHeading.closest('.card')) targets.push(grossHeading.closest('.card'));
+    const applicant2=document.querySelector('.applicant2-financial-details');
+    if(applicant2) targets.push(applicant2);
+    return targets;
   }
   function applicantNumber(card,index){
-    if(card.classList.contains('a2-only') || card.closest('.a2-only')) return 2;
+    if(card.classList.contains('a2-only') || card.closest('.a2-only') || card.classList.contains('applicant2-financial-details') || card.closest('.applicant2-financial-details')) return 2;
     const text=(card.textContent||'').slice(0,500);
     if(/Applicant\s*2/i.test(text)) return 2;
     return index+1;
