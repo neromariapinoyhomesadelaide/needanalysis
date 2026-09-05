@@ -23,5 +23,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html
-          git commit -m "Add form progress indicator and navigation"
+          git diff --cached --quiet || git commit -m "Add form progress indicator and navigation"
           git push
+
+# Publish trigger: progress navigation verified 2026-09-05
