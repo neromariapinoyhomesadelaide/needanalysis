@@ -72,6 +72,14 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .progress-current{display:none;max-width:1100px;margin:0 auto 6px;font-size:12px;font-weight:700;color:var(--navy)}
 @media(max-width:700px){.progress-shell{padding:8px 10px}.progress-current{display:block}.progress-nav{display:flex;overflow-x:auto;gap:2px;scrollbar-width:none}.progress-nav::-webkit-scrollbar{display:none}.progress-step{min-width:118px;font-size:11px;padding:5px 3px}.progress-step::before{width:24px;height:24px;margin-bottom:4px}}
 
+
+.applicant2-add-wrap{max-width:1100px;margin:-4px auto 20px;padding:0;display:flex;justify-content:flex-end}
+.applicant2-add-wrap button{min-width:190px}
+.progress-applicant-row{max-width:1100px;margin:0 auto 6px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.progress-applicant{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:#e8eef8;color:var(--navy);font-size:12px;font-weight:800;white-space:nowrap}
+.progress-applicant::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--blue)}
+@media(max-width:700px){.applicant2-add-wrap{padding:0 16px}.applicant2-add-wrap button{width:100%}.progress-applicant-row{margin-bottom:4px}.progress-applicant{font-size:11px;padding:4px 8px}}
+
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -83,6 +91,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 </header>
 
 <div class="progress-shell" id="formProgressNav">
+  <div class="progress-applicant-row"><div class="progress-applicant" id="progressApplicant">Applicant 1</div></div>
   <div class="progress-current" id="progressCurrent">Step 1 of 5 — Personal Details</div>
   <div class="progress-bar-track"><div class="progress-bar-fill" id="progressBarFill"></div></div>
   <nav class="progress-nav" aria-label="Form progress">
@@ -220,7 +229,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 
 </div></div>
 <div class="card" id="addApplicant2Card"><div class="content" style="text-align:center">
-<button class="secondary" id="addApplicant2Btn" onclick="toggleApplicant2()" type="button">+ Add Applicant 2</button>
+
 <p class="note">Applicant 1's needs analysis is complete. Click above if there is a second applicant to add to this application.</p>
 </div></div>
 <div class="card" id="applicant2Card" style="display:none"><h2>Applicant 2</h2><div class="content">
@@ -344,6 +353,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 
 <p class="note">PDF, JPG, PNG, DOC or DOCX. Maximum 10 MB per file, up to 10 files in total.</p><div class="upload-status" id="uploadStatus"></div>
 </div></div>
+<div id="applicant2AddAfterDocuments" class="applicant2-add-wrap"><button class="secondary" id="addApplicant2Btn" onclick="toggleApplicant2()" type="button">+ Add Applicant 2</button></div>
 <div class="card"><h2>Disclaimer</h2><div class="content">
 <p>I agree that the information provided in this Needs Analysis is true and correct to the best of my knowledge. I authorise Pinoy Homes Pty Ltd to share this information with relevant parties, including but not limited to mortgage brokers, lenders, and other professionals, for the purpose of assessing and progressing my application.</p>
 <div class="checks"><label><input id="disclaimer_agree" name="disclaimer_agree" onchange="toggleSubmitEnabled()" required="" type="checkbox"/> I agree to the above and authorise Pinoy Homes Pty Ltd to share this information as described.</label></div>
@@ -1048,6 +1058,39 @@ function startNewSubmission(){
   window.addEventListener('scroll',updateFromScroll,{passive:true});
   window.addEventListener('resize',updateFromScroll);
   setActive(0); updateFromScroll();
+})();
+</script>
+
+
+<script>
+(function(){
+  function updateProgressApplicant(){
+    const badge = document.getElementById('progressApplicant');
+    if (!badge) return;
+    const nav = document.getElementById('formProgressNav');
+    const cutoff = (nav?.offsetHeight || 0) + 48;
+    const candidates = Array.from(document.querySelectorAll('h2,h3,.asset>strong'))
+      .filter(el => el.offsetParent !== null)
+      .filter(el => /Applicant\s+[12]/i.test(el.textContent || ''));
+
+    let applicant = 'Applicant 1';
+    candidates.forEach(el => {
+      if (el.getBoundingClientRect().top <= cutoff) {
+        const match = (el.textContent || '').match(/Applicant\s+[12]/i);
+        if (match) applicant = match[0].replace(/applicant/i, 'Applicant');
+      }
+    });
+
+    // When Applicant 2 is not active/visible, default to Applicant 1.
+    const a2Card = document.getElementById('applicant2Card');
+    if (applicant === 'Applicant 2' && a2Card && a2Card.style.display === 'none') applicant = 'Applicant 1';
+    badge.textContent = applicant;
+  }
+
+  window.addEventListener('scroll', updateProgressApplicant, {passive:true});
+  window.addEventListener('resize', updateProgressApplicant);
+  document.getElementById('addApplicant2Btn')?.addEventListener('click', () => setTimeout(updateProgressApplicant, 0));
+  updateProgressApplicant();
 })();
 </script>
 
