@@ -63,14 +63,13 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .progress-shell{position:sticky;top:0;z-index:50;background:rgba(245,247,250,.97);backdrop-filter:blur(8px);border-bottom:1px solid var(--border);padding:10px 16px}
 .progress-nav{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:repeat(7,1fr);gap:8px;position:relative}
 .progress-step{appearance:none;border:0;background:transparent;padding:8px 6px;color:var(--muted);font-size:12px;font-weight:700;cursor:pointer;text-align:center;line-height:1.2;position:relative}
-.progress-step::before{content:attr(data-step);display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;border:2px solid #cbd5e1;background:#fff;margin:0 auto 6px;color:var(--muted);transition:.2s}
+.progress-step::before{display:none}.progress-step-number{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;border:2px solid #cbd5e1;background:#fff;margin:0 auto 6px;color:var(--muted);transition:.2s;cursor:pointer}.progress-step.active .progress-step-number,.progress-step.complete .progress-step-number{border-color:var(--blue);background:var(--blue);color:#fff}.progress-step:hover .progress-step-number,.progress-step-number:focus-visible{border-color:var(--blue);outline:none}
 .progress-step.active{color:var(--navy)}
-.progress-step.active::before,.progress-step.complete::before{border-color:var(--blue);background:var(--blue);color:#fff}
-.progress-step:hover::before{border-color:var(--blue)}
+
 .progress-bar-track{max-width:1100px;height:4px;background:#dbe3ec;border-radius:999px;margin:0 auto 7px;overflow:hidden}
 .progress-bar-fill{height:100%;width:0;background:var(--blue);transition:width .25s ease}
 .progress-current{display:none;max-width:1100px;margin:0 auto 6px;font-size:12px;font-weight:700;color:var(--navy)}
-@media(max-width:700px){.progress-shell{padding:8px 10px}.progress-current{display:block}.progress-nav{display:flex;overflow-x:auto;gap:2px;scrollbar-width:none}.progress-nav::-webkit-scrollbar{display:none}.progress-step{min-width:118px;font-size:11px;padding:5px 3px}.progress-step::before{width:24px;height:24px;margin-bottom:4px}}
+@media(max-width:700px){.progress-shell{padding:8px 10px}.progress-current{display:block}.progress-nav{display:flex;overflow-x:auto;gap:2px;scrollbar-width:none}.progress-nav::-webkit-scrollbar{display:none}.progress-step{min-width:118px;font-size:11px;padding:5px 3px}.progress-step-number{width:24px;height:24px;margin-bottom:4px}}
 
 
 .applicant2-add-wrap{max-width:1100px;margin:-4px auto 20px;padding:0;display:flex;justify-content:flex-end}
@@ -95,13 +94,13 @@ button:disabled{opacity:.5;cursor:not-allowed}
   <div class="progress-current" id="progressCurrent">Step 1 of 7 — Personal Details</div>
   <div class="progress-bar-track"><div class="progress-bar-fill" id="progressBarFill"></div></div>
   <nav class="progress-nav" aria-label="Form progress">
-    <button type="button" class="progress-step active" data-step="1" data-key="personal">Personal Details</button>
-    <button type="button" class="progress-step" data-step="2" data-key="employment">Employment Details</button>
-    <button type="button" class="progress-step" data-step="3" data-key="income">Income &amp; Expenses</button>
-    <button type="button" class="progress-step" data-step="4" data-key="assets">Assets &amp; Liabilities</button>
-    <button type="button" class="progress-step" data-step="5" data-key="documents">Supporting Documents</button>
-    <button type="button" class="progress-step" data-step="6" data-key="household">Household / Shared</button>
-    <button type="button" class="progress-step" data-step="7" data-key="review">Review &amp; Submit</button>
+    <button type="button" class="progress-step active" data-step="1" data-key="personal"><span class="progress-step-number" role="link" tabindex="0" aria-label="Go to step 1">1</span>Personal Details</button>
+    <button type="button" class="progress-step" data-step="2" data-key="employment"><span class="progress-step-number" role="link" tabindex="0" aria-label="Go to step 2">2</span>Employment Details</button>
+    <button type="button" class="progress-step" data-step="3" data-key="income"><span class="progress-step-number" role="link" tabindex="0" aria-label="Go to step 3">3</span>Income &amp; Expenses</button>
+    <button type="button" class="progress-step" data-step="4" data-key="assets"><span class="progress-step-number" role="link" tabindex="0" aria-label="Go to step 4">4</span>Assets &amp; Liabilities</button>
+    <button type="button" class="progress-step" data-step="5" data-key="documents"><span class="progress-step-number" role="link" tabindex="0" aria-label="Go to step 5">5</span>Supporting Documents</button>
+    <button type="button" class="progress-step" data-step="6" data-key="household"><span class="progress-step-number" role="link" tabindex="0" aria-label="Go to step 6">6</span>Household / Shared</button>
+    <button type="button" class="progress-step" data-step="7" data-key="review"><span class="progress-step-number" role="link" tabindex="0" aria-label="Go to step 7">7</span>Review &amp; Submit</button>
   </nav>
 </div>
 
@@ -1171,6 +1170,19 @@ function startNewSubmission(){
   window.addEventListener('scroll',updateHouseholdProgressBadge,{passive:true});
   window.addEventListener('resize',updateHouseholdProgressBadge);
   updateHouseholdProgressBadge();
+})();
+</script>
+
+<script id="progress-step-number-keyboard">
+(function(){
+  document.querySelectorAll('.progress-step-number').forEach(function(number){
+    number.addEventListener('keydown',function(e){
+      if(e.key==='Enter'||e.key===' '){
+        e.preventDefault();
+        number.closest('.progress-step')?.click();
+      }
+    });
+  });
 })();
 </script>
 </body>
