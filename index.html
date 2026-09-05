@@ -1108,13 +1108,13 @@ function startNewSubmission(){
     if(ticking)return; ticking=true;
     requestAnimationFrame(()=>{
       const targets=progressTargets(); const offset=(document.getElementById('formProgressNav')?.offsetHeight||0)+40; let active=0;
-      steps.forEach((btn,index)=>{const el=targets[btn.dataset.key]; if(el&&el.getBoundingClientRect().top<=offset)active=index;});
+      steps.forEach((btn,index)=>{const el=targets[btn.dataset.key]; if(el && el.offsetParent !== null && el.getBoundingClientRect().top<=offset) active=index;});
       setActive(active); ticking=false;
     });
   }
   window.addEventListener('scroll',updateFromScroll,{passive:true});
   window.addEventListener('resize',updateFromScroll);
-  setActive(0); updateFromScroll();
+  setActive(0); if(window.scrollY > 20) updateFromScroll();
 })();
 </script>
 
