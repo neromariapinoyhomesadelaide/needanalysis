@@ -1,1 +1,4 @@
-Force GitHub Pages rebuild after supporting document upload fields were split into Payslips, Identification Cards, Income Statements (ATO), and Bank Statements.
+GitHub Pages rebuild trigger for Needs Analysis form.
+Secure upload frontend endpoint points to the live Netlify function.
+Applicant-specific supporting document upload UI is enabled.
+Publish Applicant 2 button relocation and applicant-aware progress indicator.
