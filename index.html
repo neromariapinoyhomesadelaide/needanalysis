@@ -61,7 +61,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .upload-status.success{color:#146c3a}
 
 .progress-shell{position:sticky;top:0;z-index:50;background:rgba(245,247,250,.97);backdrop-filter:blur(8px);border-bottom:1px solid var(--border);padding:10px 16px}
-.progress-nav{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr);gap:8px;position:relative}
+.progress-nav{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:repeat(6,1fr);gap:8px;position:relative}
 .progress-step{appearance:none;border:0;background:transparent;padding:8px 6px;color:var(--muted);font-size:12px;font-weight:700;cursor:pointer;text-align:center;line-height:1.2;position:relative}
 .progress-step::before{content:attr(data-step);display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;border:2px solid #cbd5e1;background:#fff;margin:0 auto 6px;color:var(--muted);transition:.2s}
 .progress-step.active{color:var(--navy)}
@@ -92,7 +92,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 
 <div class="progress-shell" id="formProgressNav">
   <div class="progress-applicant-row"><div class="progress-applicant" id="progressApplicant">Applicant 1</div></div>
-  <div class="progress-current" id="progressCurrent">Step 1 of 5 — Personal Details</div>
+  <div class="progress-current" id="progressCurrent">Step 1 of 6 — Personal Details</div>
   <div class="progress-bar-track"><div class="progress-bar-fill" id="progressBarFill"></div></div>
   <nav class="progress-nav" aria-label="Form progress">
     <button type="button" class="progress-step active" data-step="1" data-key="personal">Personal Details</button>
@@ -100,6 +100,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
     <button type="button" class="progress-step" data-step="3" data-key="income">Income &amp; Expenses</button>
     <button type="button" class="progress-step" data-step="4" data-key="assets">Assets &amp; Liabilities</button>
     <button type="button" class="progress-step" data-step="5" data-key="documents">Supporting Documents</button>
+    <button type="button" class="progress-step" data-step="6" data-key="review">Review &amp; Submit</button>
   </nav>
 </div>
 
@@ -1020,7 +1021,7 @@ function startNewSubmission(){
 
 <script>
 (function(){
-  const labels={personal:'Personal Details',employment:'Employment Details',income:'Income & Expenses',assets:'Assets & Liabilities',documents:'Supporting Documents'};
+  const labels={personal:'Personal Details',employment:'Employment Details',income:'Income & Expenses',assets:'Assets & Liabilities',documents:'Supporting Documents',review:'Review & Submit'};
   function headingMatch(text){return Array.from(document.querySelectorAll('h2,h3')).find(h=>h.textContent.trim().toLowerCase().includes(text.toLowerCase()));}
   function progressTargets(){
     const personal=headingMatch('Personal Details — Applicant 1')||headingMatch('Personal Details')||document.querySelector('[name="a1_first_name"]')?.closest('.card');
@@ -1028,7 +1029,8 @@ function startNewSubmission(){
     const income=headingMatch('Gross Income — Applicant 1')||headingMatch('Gross Income')||document.querySelector('[name="a1_base_income"]')?.closest('.card');
     const assets=headingMatch('Property Assets')||headingMatch('Assets')||document.querySelector('[name="property_1_address"]')?.closest('.card');
     const documents=Array.from(document.querySelectorAll('h2')).find(h=>h.textContent.trim()==='Supporting Documents')?.closest('.card');
-    return {personal,employment,income,assets,documents};
+    const review=document.getElementById('reviewOverlay')||document.getElementById('reviewModal')||document.querySelector('[id*="review" i]')||Array.from(document.querySelectorAll('button')).find(b=>/review|submit/i.test(b.textContent||''))?.closest('.card')||Array.from(document.querySelectorAll('h2,h3')).find(h=>/review|submit/i.test(h.textContent||''))?.closest('.card');
+    return {personal,employment,income,assets,documents,review};
   }
   const steps=Array.from(document.querySelectorAll('#formProgressNav .progress-step'));
   const fill=document.getElementById('progressBarFill');
